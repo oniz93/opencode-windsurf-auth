@@ -176,6 +176,46 @@ export const ModelEnum = {
   SWE_1_5_THINKING: 369,
   SWE_1_5_SLOW: 377,
   CLAUDE_4_5_SONNET_THINKING_1M: 371,
+
+  // ============================================================================
+  // Enterprise / Private Model Slots
+  // These are often used for exclusive or regional model deployments
+  // ============================================================================
+  MODEL_PRIVATE_1: 219,
+  MODEL_PRIVATE_2: 220,
+  MODEL_PRIVATE_3: 221,
+  MODEL_PRIVATE_4: 222,
+  MODEL_PRIVATE_5: 223,
+  MODEL_PRIVATE_6: 314,
+  MODEL_PRIVATE_7: 315,
+  MODEL_PRIVATE_8: 316,
+  MODEL_PRIVATE_9: 317,
+  MODEL_PRIVATE_10: 318,
+  MODEL_PRIVATE_11: 347,
+  MODEL_PRIVATE_12: 348,
+  MODEL_PRIVATE_13: 349,
+  MODEL_PRIVATE_14: 350,
+  MODEL_PRIVATE_15: 351,
+  MODEL_PRIVATE_16: 363,
+  MODEL_PRIVATE_17: 364,
+  MODEL_PRIVATE_18: 365,
+  MODEL_PRIVATE_19: 366,
+  MODEL_PRIVATE_20: 367,
+  MODEL_PRIVATE_21: 372,
+  MODEL_PRIVATE_22: 373,
+  MODEL_PRIVATE_23: 374,
+  MODEL_PRIVATE_24: 375,
+  MODEL_PRIVATE_25: 376,
+  MODEL_PRIVATE_26: 380,
+  MODEL_PRIVATE_27: 381,
+  MODEL_PRIVATE_28: 382,
+  MODEL_PRIVATE_29: 383,
+  MODEL_PRIVATE_30: 384,
+
+  // ============================================================================
+  // Additional Models
+  // ============================================================================
+  GPT_OSS_120B: 326,
 } as const;
 
 export type ModelEnumValue = (typeof ModelEnum)[keyof typeof ModelEnum];

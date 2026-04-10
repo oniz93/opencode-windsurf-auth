@@ -655,17 +655,123 @@ export async function* streamChatGenerator(
 
   // Yield chunks as they arrive
   while (!done || chunkQueue.length > 0) {
-    if (chunkQueue.length > 0) {
-      yield chunkQueue.shift()!;
-    } else if (!done) {
-      await new Promise<void>((resolve) => {
-        resolveWait = resolve;
-      });
-      resolveWait = null;
-    }
+  if (chunkQueue.length > 0) {
+    yield chunkQueue.shift()!;
+  } else if (!done) {
+    await new Promise<void>((resolve) => {
+      resolveWait = resolve;
+    });
+    resolveWait = null;
+  }
   }
 
   if (error) {
-    throw error;
+  throw error;
   }
-}
+  }
+
+  /**
+  * Discovered model configuration from Windsurf
+  */
+  export interface DiscoveredModel {
+  id: string;
+  name: string;
+  enumValue: number;
+  }
+
+  /**
+   * Fetch available model configurations from Windsurf language server
+   */
+  export async function getModels(credentials: WindsurfCredentials): Promise<DiscoveredModel[]> {
+    const { csrfToken, port, apiKey, version } = credentials;
+
+    // GetModelStatusesRequest has Metadata in Field 1
+    const metadata = encodeMetadata(apiKey, version);
+    const requestPayload = encodeMessage(1, metadata);
+
+    // gRPC framing: 1 byte compression (0) + 4 bytes length + payload
+    const body = Buffer.alloc(5 + requestPayload.length);
+    body[0] = 0;
+    body.writeUInt32BE(requestPayload.length, 1);
+    Buffer.from(requestPayload).copy(body, 5);
+
+    return new Promise((resolve, reject) => {
+      const client = http2.connect(`http://localhost:${port}`);
+      const chunks: Buffer[] = [];
+
+      client.on('error', reject);
+
+      const req = client.request({
+        ':method': 'POST',
+        ':path': '/exa.language_server_pb.LanguageServerService/GetModelStatuses',
+        'content-type': 'application/grpc',
+        'te': 'trailers',
+        'x-codeium-csrf-token': csrfToken,
+      });
+
+      req.on('data', (chunk: Buffer) => {
+        chunks.push(chunk);
+      });
+
+      req.on('end', () => {
+        client.close();
+        const fullBuffer = Buffer.concat(chunks);
+        if (fullBuffer.length < 5) {
+          resolve([]);
+          return;
+        }
+
+        const messageLength = fullBuffer.readUInt32BE(1);
+        const payload = fullBuffer.subarray(5, 5 + messageLength);
+
+        try {
+          const models: DiscoveredModel[] = [];
+          let offset = 0;
+
+          // Parse GetModelStatusesResponse
+          // Field 1: model_status_infos (repeated ModelStatusInfo)
+          while (offset < payload.length) {
+            const field = parseProtobufField(payload, offset);
+            if (!field) break;
+            offset += field.bytesConsumed;
+
+            if (field.fieldNum === 1 && field.wireType === 2 && Buffer.isBuffer(field.value)) {
+              // Parse ModelStatusInfo
+              // Field 1: model (enum)
+              // Field 4: model_uid (string)
+              let infoOffset = 0;
+              let modelEnum = 0;
+              let modelUid = '';
+
+              const infoBuf = field.value;
+              while (infoOffset < infoBuf.length) {
+                const infoField = parseProtobufField(infoBuf, infoOffset);
+                if (!infoField) break;
+                infoOffset += infoField.bytesConsumed;
+
+                if (infoField.fieldNum === 1 && infoField.wireType === 0) {
+                  modelEnum = Number(infoField.value);
+                } else if (infoField.fieldNum === 4 && infoField.wireType === 2 && Buffer.isBuffer(infoField.value)) {
+                  modelUid = infoField.value.toString('utf8');
+                }
+              }
+
+              if (modelEnum > 0) {
+                models.push({
+                  id: modelUid || `model-${modelEnum}`,
+                  name: modelUid || `Model ${modelEnum}`,
+                  enumValue: modelEnum
+                });
+              }
+            }
+          }
+          resolve(models);
+        } catch (err) {
+          reject(err);
+        }
+      });
+
+      req.end(body);
+    });
+  }
+

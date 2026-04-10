@@ -874,7 +874,33 @@ export const createWindsurfPlugin =
         },
 
         // No auth methods needed - we use Windsurf's existing auth
-        methods: [],
+        methods: [
+          {
+            type: 'api',
+            label: 'Sync Models',
+          async authorize() {
+            console.log('Synchronizing Windsurf models...');
+            try {
+              const { execSync } = await import('child_process');
+              const path = await import('path');
+              const { fileURLToPath } = await import('url');
+              
+              // Find the root of the plugin package
+              const currentFile = fileURLToPath(import.meta.url);
+              const pluginRoot = path.join(path.dirname(currentFile), '..', '..');
+              const scriptPath = path.join(pluginRoot, 'scripts', 'sync-models.ts');
+              
+              console.log(`Executing sync script: ${scriptPath}`);
+              // Run bun install first to ensure sqlite3 exists in the cache folder, then run script
+              execSync(`cd ${pluginRoot} && bun install --silent && bun ${scriptPath}`, { stdio: 'inherit' });
+              return { type: 'success', key: 'synced' };
+            } catch (err) {
+              console.error('Failed to sync models:', err);
+              return { type: 'failed' };
+            }
+          },
+          },
+        ],
       },
 
       // Dynamic baseURL injection (key pattern from cursor-auth)

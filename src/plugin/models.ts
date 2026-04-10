@@ -353,13 +353,9 @@ const MODEL_NAME_TO_ENUM: Record<string, ModelEnumValue> = {
   
   // GPT 5.2 variants
   'gpt-5.2': ModelEnum.GPT_5_2_MEDIUM,
-  'gpt-5-2': ModelEnum.GPT_5_2_MEDIUM,
   'gpt-5.2-low': ModelEnum.GPT_5_2_LOW,
-  'gpt-5-2-low': ModelEnum.GPT_5_2_LOW,
   'gpt-5.2-high': ModelEnum.GPT_5_2_HIGH,
-  'gpt-5-2-high': ModelEnum.GPT_5_2_HIGH,
   'gpt-5.2-xhigh': ModelEnum.GPT_5_2_XHIGH,
-  'gpt-5-2-xhigh': ModelEnum.GPT_5_2_XHIGH,
   'gpt-5.2-priority': ModelEnum.GPT_5_2_MEDIUM_PRIORITY,
   'gpt-5.2-low-priority': ModelEnum.GPT_5_2_LOW_PRIORITY,
   'gpt-5.2-high-priority': ModelEnum.GPT_5_2_HIGH_PRIORITY,
@@ -493,6 +489,22 @@ const MODEL_NAME_TO_ENUM: Record<string, ModelEnumValue> = {
   'swe-1-5-thinking': ModelEnum.SWE_1_5_THINKING,
   'swe-1.5-slow': ModelEnum.SWE_1_5_SLOW,
   'swe-1-5-slow': ModelEnum.SWE_1_5_SLOW,
+
+  // ============================================================================
+  // Enterprise / Private Model Mappings
+  // ============================================================================
+  'kimi-k2-5': ModelEnum.MODEL_PRIVATE_9,
+  'minimax-m2-5': ModelEnum.MODEL_PRIVATE_19,
+  'claude-haiku-4-5': ModelEnum.MODEL_PRIVATE_11,
+  'claude-sonnet-4-5': ModelEnum.MODEL_PRIVATE_2,
+  'claude-sonnet-4-5-thinking': ModelEnum.MODEL_PRIVATE_3,
+  'gpt-5-1': ModelEnum.MODEL_PRIVATE_12,
+  'gpt-5-2': ModelEnum.MODEL_PRIVATE_13,
+  'gpt-5-3': ModelEnum.MODEL_PRIVATE_14,
+  'gpt-5-4': ModelEnum.MODEL_PRIVATE_15,
+  'gemini-3-1-pro-high': ModelEnum.MODEL_PRIVATE_20,
+  'gemini-3-1-pro-low': ModelEnum.MODEL_PRIVATE_21,
+  'gpt-oss-120b': ModelEnum.GPT_OSS_120B,
 };
 
 /**
@@ -611,6 +623,20 @@ const ENUM_TO_MODEL_NAME: Partial<Record<ModelEnumValue, string>> = {
   [ModelEnum.SWE_1_5]: 'swe-1.5',
   [ModelEnum.SWE_1_5_THINKING]: 'swe-1.5-thinking',
   [ModelEnum.SWE_1_5_SLOW]: 'swe-1.5-slow',
+
+  // Enterprise Reverse Mappings
+  [ModelEnum.MODEL_PRIVATE_9]: 'kimi-k2-5',
+  [ModelEnum.MODEL_PRIVATE_19]: 'minimax-m2-5',
+  [ModelEnum.MODEL_PRIVATE_11]: 'claude-haiku-4-5',
+  [ModelEnum.MODEL_PRIVATE_2]: 'claude-sonnet-4-5',
+  [ModelEnum.MODEL_PRIVATE_3]: 'claude-sonnet-4-5-thinking',
+  [ModelEnum.MODEL_PRIVATE_12]: 'gpt-5-1',
+  [ModelEnum.MODEL_PRIVATE_13]: 'gpt-5-2',
+  [ModelEnum.MODEL_PRIVATE_14]: 'gpt-5-3',
+  [ModelEnum.MODEL_PRIVATE_15]: 'gpt-5-4',
+  [ModelEnum.MODEL_PRIVATE_20]: 'gemini-3-1-pro-high',
+  [ModelEnum.MODEL_PRIVATE_21]: 'gemini-3-1-pro-low',
+  [ModelEnum.GPT_OSS_120B]: 'gpt-oss-120b',
 };
 
 // ============================================================================

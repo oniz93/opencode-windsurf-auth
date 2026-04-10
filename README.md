@@ -9,22 +9,18 @@ Opencode plugin for Windsurf/Codeium authentication - use Windsurf models in Ope
 
 ## Features
 
-- OpenAI-compatible `/v1/chat/completions` interface with streaming SSE
-- Automatic credential discovery (CSRF token, port, API key)
-- Transparent REST↔gRPC translation over HTTP/2
-- Zero extra auth prompts when Windsurf is running
-- Opencode tool-calling compatible: tools are planned via Windsurf inference but executed by Opencode (MCP/tool registry remains authoritative)
-
-## Overview
-
-This plugin enables Opencode users to access Windsurf/Codeium models by leveraging their existing Windsurf installation. It communicates directly with the **local Windsurf language server** via gRPC—no network traffic capture or OAuth flows required.
+- **OpenAI-compatible** `/v1/chat/completions` interface with streaming SSE.
+- **Automatic Discovery**: CSRF tokens, dynamic ports, and API keys are fetched directly from your running Windsurf process.
+- **Node.js & Bun Support**: Runs in standard Node.js environments (like default OpenCode) or Bun.
+- **Enterprise Ready**: Supports exclusive Enterprise models, regional deployments, and private model slots (Kimi, Minimax, etc.).
+- **Dynamic Model Sync**: Automatically update your `opencode.json` with the models actually enabled for your account.
+- **Transparent gRPC Translation**: Translates REST requests to Windsurf's internal gRPC protocol over HTTP/2.
 
 ## Prerequisites
 
 1. **Windsurf IDE installed** - Download from [windsurf.com](https://windsurf.com)
-2. **Windsurf running** - The plugin communicates with the local language server
-3. **Logged into Windsurf** - Provides API key in `~/.codeium/config.json`
-4. **Active Windsurf subscription** - Model access depends on your plan
+2. **Windsurf running** - The plugin communicates with the local language server process.
+3. **Logged into Windsurf** - Ensure you are signed in within the IDE.
 
 ## Installation
 
@@ -32,13 +28,29 @@ This plugin enables Opencode users to access Windsurf/Codeium models by leveragi
 bun add opencode-windsurf-auth@beta
 ```
 
+## Model Synchronization
+
+Windsurf account permissions vary by tier (Free, Pro, Enterprise). To ensure you only see and use models enabled for your account, use the built-in sync tool:
+
+### Method 1: Via OpenCode (Recommended)
+Run the login command and select **"Sync Models"**:
+```bash
+opencode login windsurf
+```
+
+### Method 2: Via CLI
+Run the sync script directly from the plugin directory:
+```bash
+bun run sync-models
+```
+This will scan your Windsurf configuration and update `~/.config/opencode/opencode.json` with the correct model IDs and human-readable labels.
+
 ## Opencode Configuration
 
-Add the following to your Opencode config (typically `~/.config/opencode/config.json`). The plugin starts a local proxy server on port 42100 (falls back to a random free port and updates `chat.params` automatically). The full model list with variants is in `opencode_config_example.json`; thinking vs non-thinking are separate models, while variants are only for performance tiers (low/high/xhigh/etc.).
+Your `opencode.json` should point to the local proxy started by the plugin. Use the sync tool above to populate the `models` list automatically.
 
 ```json
 {
-  "$schema": "https://opencode.ai/config.json",
   "plugin": ["opencode-windsurf-auth@beta"],
   "provider": {
     "windsurf": {
@@ -119,45 +131,22 @@ Keep Windsurf running and signed in—credentials are fetched live from the IDE 
 
 ```
 src/
-├── plugin.ts              # Fetch interceptor that routes to Windsurf
-├── constants.ts           # gRPC service metadata
-└── plugin/
-    ├── auth.ts            # Credential discovery
-    ├── grpc-client.ts     # Streaming chat bridge
-    ├── models.ts          # Model lookup tables
-    └── types.ts           # Shared enums/types
+├── plugin.ts              # Proxy server & OpenCode hooks
+├── plugin/
+    ├── auth.ts            # Process-based credential discovery (CSRF/Port)
+    ├── grpc-client.ts     # Protobuf/gRPC communication logic
+    ├── models.ts          # Internal ID to Enum mapping
+    └── types.ts           # Protobuf Enums including PRIVATE slots
+scripts/
+└── sync-models.ts         # Data-driven model discovery script
 ```
 
-### How It Works
+## How It Works
 
-1. **Credential Discovery**: Extracts CSRF token and port from the running `language_server_macos` process
-2. **API Key**: Reads from `~/.codeium/config.json`
-3. **gRPC Communication**: Sends requests to `localhost:{port}` using HTTP/2 gRPC protocol
-4. **Response Transformation**: Converts gRPC responses to OpenAI-compatible SSE format (assistant/tool turns are not replayed back to Windsurf)
-5. **Model Naming**: Sends both model enum and `chat_model_name` for fidelity with Windsurf’s expectations
-6. **Tool Planning**: When `tools` are provided, we build a tool-calling prompt (with system messages) and ask Windsurf to produce `tool_calls`/final text. Tool execution and MCP tool registry stay on OpenCode’s side.
-
-### Supported Models (canonical names)
-
-**Claude**: `claude-3-opus`, `claude-3-sonnet`, `claude-3-haiku`, `claude-3.5-sonnet`, `claude-3.5-haiku`, `claude-3.7-sonnet`, `claude-3.7-sonnet-thinking`, `claude-4-opus`, `claude-4-opus-thinking`, `claude-4-sonnet`, `claude-4-sonnet-thinking`, `claude-4.1-opus`, `claude-4.1-opus-thinking`, `claude-4.5-sonnet`, `claude-4.5-sonnet-thinking`, `claude-4.5-opus`, `claude-4.5-opus-thinking`, `claude-code`.
-
-**OpenAI GPT**: `gpt-4`, `gpt-4-turbo`, `gpt-4o`, `gpt-4o-mini`, `gpt-4.1`, `gpt-4.1-mini`, `gpt-4.1-nano`, `gpt-5`, `gpt-5-nano`, `gpt-5-codex`, `gpt-5.1-codex-mini`, `gpt-5.1-codex`, `gpt-5.1-codex-max`, `gpt-5.2` (variants low/medium/high/xhigh + priority tiers). Non-thinking vs thinking are separate model IDs, not variants.
-
-**OpenAI O-series**: `o3`, `o3-mini`, `o3-low`, `o3-high`, `o3-pro`, `o3-pro-low`, `o3-pro-high`, `o4-mini`, `o4-mini-low`, `o4-mini-high`.
-
-**Gemini**: `gemini-2.0-flash`, `gemini-2.5-pro`, `gemini-2.5-flash`, `gemini-2.5-flash-thinking`, `gemini-2.5-flash-lite`, `gemini-3.0-pro` (variants: `minimal`, `low`, `medium`, `high`), `gemini-3.0-flash` (variants: `minimal`, `low`, `medium`, `high`). Thinking versions of Gemini 2.5 are separate models.
-
-**DeepSeek**: `deepseek-v3`, `deepseek-v3-2`, `deepseek-r1`, `deepseek-r1-fast`, `deepseek-r1-slow`.
-
-**Llama**: `llama-3.1-8b`, `llama-3.1-70b`, `llama-3.1-405b`, `llama-3.3-70b`, `llama-3.3-70b-r1`.
-
-**Qwen**: `qwen-2.5-7b`, `qwen-2.5-32b`, `qwen-2.5-72b`, `qwen-2.5-32b-r1`, `qwen-3-235b`, `qwen-3-coder-480b`, `qwen-3-coder-480b-fast`.
-
-**Grok (xAI)**: `grok-2`, `grok-3`, `grok-3-mini`, `grok-code-fast`.
-
-**Specialty & Proprietary**: `mistral-7b`, `kimi-k2`, `kimi-k2-thinking`, `glm-4.5`, `glm-4.5-fast`, `glm-4.6`, `glm-4.6-fast`, `glm-4.7`, `glm-4.7-fast`, `minimax-m2`, `minimax-m2.1`, `swe-1.5`, `swe-1.5-thinking`, `swe-1.5-slow`.
-
-Aliases (e.g., `gpt-5.2-low-priority`) are also accepted. Variants live under `provider.windsurf.models[model].variants`; thinking/non-thinking are distinct models.
+1. **Discovery**: The plugin finds the Windsurf process and extracts the CSRF token from its environment variables (`WINDSURF_CSRF_TOKEN`) and the dynamic port from its listener list.
+2. **Proxy**: A local server (Node or Bun) starts to handle incoming OpenCode requests.
+3. **Translation**: REST requests are converted to the internal gRPC format, including metadata like your API key and IDE version.
+4. **Streaming**: Responses are streamed back in real-time using standard SSE.
 
 ## Development
 
@@ -165,14 +154,14 @@ Aliases (e.g., `gpt-5.2-low-priority`) are also accepted. Variants live under `p
 # Install dependencies
 bun install
 
-# Build
+# Build (TypeScript to JS)
 bun run build
 
-# Type check
-bun run typecheck
+# Synchronize models for testing
+bun run sync-models
 
-# Run tests
-bun test
+# Run live verification
+bun run tests/live/verify-plugin.ts
 ```
 
 ## Known Limitations
