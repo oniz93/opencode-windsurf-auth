@@ -15,6 +15,7 @@
  */
 
 import * as crypto from 'crypto';
+import * as http from 'http';
 import type { PluginInput, Hooks } from '@opencode-ai/plugin';
 import { getCredentials, isWindsurfRunning, WindsurfCredentials } from './plugin/auth.js';
 import { streamChatGenerator, ChatMessage } from './plugin/grpc-client.js';
@@ -732,7 +733,7 @@ async function ensureWindsurfProxyServer(): Promise<string> {
 
   const bunAny = globalThis as any;
   if (typeof bunAny.Bun !== 'undefined' && typeof bunAny.Bun.serve === 'function') {
-    // Check if server already running on default port
+    // Bun runtime logic (original)
     try {
       const res = await fetch(`http://${WINDSURF_PROXY_HOST}:${WINDSURF_PROXY_DEFAULT_PORT}/health`).catch(() => null);
       if (res && res.ok) {
@@ -740,17 +741,14 @@ async function ensureWindsurfProxyServer(): Promise<string> {
         g[key].baseURL = baseURL;
         return baseURL;
       }
-    } catch {
-      // ignore
-    }
+    } catch { /* ignore */ }
 
     const startServer = (port: number) => {
       return bunAny.Bun.serve({
         hostname: WINDSURF_PROXY_HOST,
         port,
         fetch: handler,
-        // Keep connections alive longer to allow slow/long chat streams
-        idleTimeout: 100, // seconds
+        idleTimeout: 100,
       });
     };
 
@@ -760,24 +758,13 @@ async function ensureWindsurfProxyServer(): Promise<string> {
       g[key].baseURL = baseURL;
       return baseURL;
     } catch (error) {
-      const code = (error as any)?.code;
-      if (code !== 'EADDRINUSE') {
-        throw error;
+      if ((error as any)?.code !== 'EADDRINUSE') throw error;
+      const res = await fetch(`http://${WINDSURF_PROXY_HOST}:${WINDSURF_PROXY_DEFAULT_PORT}/health`).catch(() => null);
+      if (res && res.ok) {
+        const baseURL = `http://${WINDSURF_PROXY_HOST}:${WINDSURF_PROXY_DEFAULT_PORT}/v1`;
+        g[key].baseURL = baseURL;
+        return baseURL;
       }
-
-      // Port in use - check if it's our server
-      try {
-        const res = await fetch(`http://${WINDSURF_PROXY_HOST}:${WINDSURF_PROXY_DEFAULT_PORT}/health`).catch(() => null);
-        if (res && res.ok) {
-          const baseURL = `http://${WINDSURF_PROXY_HOST}:${WINDSURF_PROXY_DEFAULT_PORT}/v1`;
-          g[key].baseURL = baseURL;
-          return baseURL;
-        }
-      } catch {
-        // ignore
-      }
-
-      // Fallback to random port
       const server = startServer(0);
       const baseURL = `http://${WINDSURF_PROXY_HOST}:${server.port}/v1`;
       g[key].baseURL = baseURL;
@@ -785,7 +772,83 @@ async function ensureWindsurfProxyServer(): Promise<string> {
     }
   }
 
-  throw new Error('Windsurf proxy server requires Bun runtime');
+  // Node.js fallback
+  const startNodeServer = (port: number): Promise<{ port: number }> => {
+    return new Promise((resolve, reject) => {
+      const server = http.createServer(async (nodeReq, nodeRes) => {
+        try {
+          // Construct Fetch-like Request from Node request
+          const protocol = (nodeReq.socket as any).encrypted ? 'https' : 'http';
+          const host = nodeReq.headers.host || `${WINDSURF_PROXY_HOST}:${port}`;
+          const url = new URL(nodeReq.url || '/', `${protocol}://${host}`);
+          
+          const chunks: Buffer[] = [];
+          for await (const chunk of nodeReq) {
+            chunks.push(chunk);
+          }
+          const body = chunks.length > 0 ? Buffer.concat(chunks) : undefined;
+
+          const request = new Request(url.toString(), {
+            method: nodeReq.method,
+            headers: nodeReq.headers as any,
+            body: body,
+          });
+
+          const response = await handler(request);
+
+          // Stream Response back to Node response
+          nodeRes.statusCode = response.status;
+          response.headers.forEach((value, key) => {
+            nodeRes.setHeader(key, value);
+          });
+
+          if (response.body) {
+            const reader = response.body.getReader();
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              nodeRes.write(value);
+            }
+          }
+          nodeRes.end();
+        } catch (err) {
+          console.error('[Windsurf Proxy] Request handler error:', err);
+          nodeRes.statusCode = 500;
+          nodeRes.end(JSON.stringify({ error: 'Internal Server Error', message: String(err) }));
+        }
+      });
+
+      server.on('error', (err: any) => {
+        if (port !== 0 && err.code === 'EADDRINUSE') {
+          reject(err);
+        } else {
+          console.error('[Windsurf Proxy] Server error:', err);
+          reject(err);
+        }
+      });
+
+      server.listen(port, WINDSURF_PROXY_HOST, () => {
+        const address = server.address();
+        const actualPort = typeof address === 'string' ? port : (address?.port ?? port);
+        resolve({ port: actualPort });
+      });
+    });
+  };
+
+  try {
+    const { port } = await startNodeServer(WINDSURF_PROXY_DEFAULT_PORT);
+    const baseURL = `http://${WINDSURF_PROXY_HOST}:${port}/v1`;
+    g[key].baseURL = baseURL;
+    return baseURL;
+  } catch (error) {
+    if ((error as any)?.code === 'EADDRINUSE') {
+      const { port } = await startNodeServer(0);
+      const baseURL = `http://${WINDSURF_PROXY_HOST}:${port}/v1`;
+      g[key].baseURL = baseURL;
+      return baseURL;
+    }
+    throw error;
+  }
 }
 
 // ============================================================================

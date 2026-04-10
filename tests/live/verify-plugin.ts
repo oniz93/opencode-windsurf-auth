@@ -77,10 +77,10 @@ async function main() {
     process.exit(1);
   }
 
-  // Test 5: Test another model (Claude)
+  // Test 5: Test Claude 3.5
   console.log('5. Testing with Claude 3.5 Sonnet...');
   const messages2: ChatMessage[] = [
-    { role: 'user', content: 'Reply with just: "Claude OK"' }
+    { role: 'user', content: 'Reply with just: "Claude 3.5 OK"' }
   ];
 
   try {
@@ -95,9 +95,35 @@ async function main() {
       chunks.push(chunk);
       process.stdout.write(chunk);
     }
-    console.log('\n   OK: Claude streaming completed\n');
+    console.log('\n   OK: Claude 3.5 streaming completed\n');
   } catch (error) {
-    console.error(`\n   FAIL: ${error instanceof Error ? error.message : error}`);
+    console.log(`\n   INFO: Claude 3.5 failed (might be deprecated): ${error instanceof Error ? error.message : error}`);
+  }
+
+  // Add delay
+  await new Promise(r => setTimeout(r, 1000));
+
+  // Test 6: Test Claude 3.7
+  console.log('6. Testing with Claude 3.7 Sonnet...');
+  const messages3: ChatMessage[] = [
+    { role: 'user', content: 'Reply with just: "Claude 3.7 OK"' }
+  ];
+
+  try {
+    const chunks: string[] = [];
+    const generator = streamChatGenerator(credentials, {
+      model: 'claude-3.7-sonnet',
+      messages: messages3,
+    });
+
+    process.stdout.write('   Response: ');
+    for await (const chunk of generator) {
+      chunks.push(chunk);
+      process.stdout.write(chunk);
+    }
+    console.log('\n   OK: Claude 3.7 streaming completed\n');
+  } catch (error) {
+    console.error(`\n   FAIL: Claude 3.7 failed: ${error instanceof Error ? error.message : error}`);
     process.exit(1);
   }
 

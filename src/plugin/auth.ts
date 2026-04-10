@@ -97,11 +97,11 @@ function getLanguageServerProcess(): string | null {
       );
       return output;
     } else {
-      // Unix-like: use ps
-      const output = execSync(
-        `ps aux | grep ${pattern}`,
-        { encoding: 'utf8', timeout: 5000 }
-      );
+      // Unix-like: use ps with eww to see environment on macOS
+      const cmd = process.platform === 'darwin' 
+        ? `ps auxeww | grep ${pattern} | grep -v grep`
+        : `ps aux | grep ${pattern} | grep -v grep`;
+      const output = execSync(cmd, { encoding: 'utf8', timeout: 5000 });
       return output;
     }
   } catch {
@@ -122,9 +122,37 @@ export function getCSRFToken(): string {
     );
   }
   
-  const match = processInfo.match(/--csrf_token\s+([a-f0-9-]+)/);
-  if (match?.[1]) {
-    return match[1];
+  // 1. Try process arguments
+  const argMatch = processInfo.match(/--csrf_token\s+([a-f0-9-]+)/);
+  if (argMatch?.[1]) {
+    return argMatch[1];
+  }
+
+  // 2. Try environment variables (macOS/Linux)
+  if (process.platform !== 'win32') {
+    const envMatch = processInfo.match(/WINDSURF_CSRF_TOKEN=([a-f0-9-]+)/);
+    if (envMatch?.[1]) {
+      return envMatch[1];
+    }
+
+    // 3. Linux fallback: check /proc if ps aux didn't show it
+    if (process.platform === 'linux') {
+      try {
+        const pidMatch = processInfo.match(/^\s*\S+\s+(\d+)/);
+        if (pidMatch) {
+          const pid = pidMatch[1];
+          const environ = fs.readFileSync(`/proc/${pid}/environ`, 'utf8');
+          const lines = environ.split('\0');
+          for (const line of lines) {
+            if (line.startsWith('WINDSURF_CSRF_TOKEN=')) {
+              return line.split('=')[1];
+            }
+          }
+        }
+      } catch {
+        // Fall through
+      }
+    }
   }
   
   throw new WindsurfError(
