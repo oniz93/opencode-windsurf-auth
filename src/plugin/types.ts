@@ -178,8 +178,8 @@ export const ModelEnum = {
   CLAUDE_4_5_SONNET_THINKING_1M: 371,
 
   // ============================================================================
-  // Enterprise / Private Model Slots
-  // These are often used for exclusive or regional model deployments
+  // Enterprise / Private Model Slots (Generic)
+  // These are used for dynamic discovery of account-specific models.
   // ============================================================================
   MODEL_PRIVATE_1: 219,
   MODEL_PRIVATE_2: 220,
